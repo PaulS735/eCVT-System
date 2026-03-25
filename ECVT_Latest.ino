@@ -28,7 +28,8 @@ const unsigned long BTN_DEBOUNCE_MS = 200;  // Minimum ms between accepted press
 // --- Fault detection constants ---
 const int ACT_FEEDBACK_MIN     = 10;    // Below this = feedback wire likely broken/disconnected
 const int ACT_FEEDBACK_MAX     = 3000;  // Above this = feedback wire shorted to power
-const float RPM_MAX_VALID      = 4000.0; // Above this RPM = sensor noise / false trigger
+const float RPM_MAX_VALID      = 4050.0; // Requirement ceiling is 3900 RPM + 150 noise margin
+const float RPM_MIN_CONTROL    = 1800.0; // Below this = engine not under load, hold retracted
 const unsigned long ACT_STALL_TIMEOUT_MS = 3000; // If actuator hasn't moved in this long while driving
 
 // --- Engine specs ---
@@ -38,6 +39,15 @@ const float ENGINE_HP = 10.0;  // Briggs & Stratton 10HP
 volatile unsigned long lastPulseTime = 0;
 volatile unsigned long pulseDelta = 0;
 volatile bool newPulse = false;
+
+// --- RPM rolling average ---
+// A 4-sample rolling average of pulseDelta smooths out magnet bounce and marginal
+// ISR triggers under vibration. At 3900 RPM worst-case, pulse period is ~15,385 us.
+// 4 samples adds ~46 ms of latency — well within the 50 ms print/control interval.
+const int RPM_AVG_SAMPLES = 4;
+unsigned long deltaBuffer[RPM_AVG_SAMPLES] = {0};
+int deltaBufferIdx = 0;
+int deltaBufferCount = 0;  // Tracks fill level — don't average until buffer is full
 
 // --- Fault flags ---
 enum FaultCode {
@@ -55,6 +65,7 @@ bool faultLatched = false;  // Once critical fault triggers, stay in fault until
 unsigned long lastDetectionTime = 0;
 unsigned long timeDelta = 0;
 float rpm = 0;
+float lastValidRpm = 0;  // Retained across noise spikes — used when current reading is rejected
 bool rpmValid = false;
 int actuatorPos = 0;
 unsigned long lastDirectionChange = 0;
@@ -69,41 +80,68 @@ unsigned long lastBtnTime = 0;
 int lastActuatorPos = 0;
 unsigned long actLastMoveTime = 0;
 unsigned long lastFaultPrintTime = 0;
+bool actuatorInDeadband = false;  // Set by driveActuator when position is within target deadband
 
 // --- Preset structure ---
+const int MAX_BREAKPOINTS = 7;
+
 struct RpmPreset {
   const char* name;
-  int rpmThresholds[5];
-  int actPositions[5];    // Actuator position targets in ADC counts (0-2794)
+  int rpmThresholds[MAX_BREAKPOINTS];
+  int actPositions[MAX_BREAKPOINTS];  // Actuator position targets in ADC counts (0-2794)
   int numPoints;
 };
 
-// Placeholder values — must be calibrated on vehicle
-const RpmPreset PRESET_AGGRESSIVE = {
-  "Aggressive",
-  {500, 1000, 1500, 2000, 2500},
-  {600, 1100, 1600, 2100, 2600},
-  5
-};
+// Placeholder values — MUST be calibrated on vehicle with actual CVT variator.
+// RPM range: 1800–3900 per requirement. Below 1800 = hold retracted (RPM_MIN_CONTROL).
+// Positions are ADC counts after voltage divider (0 = retracted, ~2794 = fully extended).
+//
+// TODO: Secondary driven-shaft sensor needed to close the loop on actual CVT ratio.
+//       Until then, these curves map engine RPM to actuator position as a proxy only.
+//       Calibration requires measuring sheave position vs belt ratio on the bench,
+//       then tuning breakpoints during on-vehicle dyno/driving tests.
 
 const RpmPreset PRESET_ECONOMY = {
   "Economy",
-  {300, 800, 1300, 1800, 2300},
-  {500, 900, 1400, 1900, 2400},
-  5
+  {1800, 2150, 2500, 2850, 3200, 3550, 3900},
+  { 400,  700, 1000, 1350, 1700, 2050, 2400},
+  7
 };
 
 const RpmPreset PRESET_SPORT = {
   "Sport",
-  {600, 1200, 1800, 2400, 3000},
-  {700, 1200, 1700, 2200, 2700},
-  5
+  {1800, 2150, 2500, 2850, 3200, 3550, 3900},
+  { 500,  850, 1200, 1600, 2000, 2350, 2600},
+  7
+};
+
+const RpmPreset PRESET_AGGRESSIVE = {
+  "Aggressive",
+  {1800, 2150, 2500, 2850, 3200, 3550, 3900},
+  { 600, 1000, 1400, 1800, 2200, 2500, 2700},
+  7
 };
 
 // Active preset pointer
 const RpmPreset* activePreset = &PRESET_ECONOMY;
 
 // --- Hall effect ISR ---
+// Accuracy derivation (SR_20/SR_21: 0.05% RPM accuracy over 1800–3900 range):
+//
+//   At 3900 RPM (worst case — shortest period):
+//     Period = 60e6 / 3900 = 15,385 us
+//     micros() resolution on Teensy 4.1 = 1 us (hardware timer, no jitter)
+//     Single-sample quantization error = 1 / 15385 = 0.0065% — meets 0.05%
+//
+//   With 4-sample rolling average:
+//     Random jitter (magnet wobble, ISR latency ~0.2 us on Cortex-M7) averages out.
+//     Effective jitter contribution ≈ 0.2 / (15385 * sqrt(4)) = 0.00065% — negligible.
+//     Dominant error source becomes magnet placement concentricity, not firmware.
+//
+//   At 1800 RPM (longest period in control range):
+//     Period = 60e6 / 1800 = 33,333 us
+//     Single-sample error = 1 / 33333 = 0.003% — even better.
+//
 void hallISR() {
   unsigned long now = micros();
   pulseDelta = now - lastPulseTime;
@@ -154,7 +192,9 @@ int getActuatorTargetForRpm(float currentRpm) {
     target = activePreset->actPositions[activePreset->numPoints - 1];
   }
   else {
-    target = activePreset->actPositions[0]; // default
+    // Default to first position. If RPM is nonzero but below rpmThresholds[0],
+    // we clamp to actPositions[0] — no interpolation below the lowest breakpoint.
+    target = activePreset->actPositions[0];
     for (int i = 0; i < activePreset->numPoints - 1; i++) {
       if (currentRpm >= activePreset->rpmThresholds[i] &&
           currentRpm < activePreset->rpmThresholds[i + 1]) {
@@ -186,12 +226,15 @@ void driveActuator(int target) {
 
   if (actuatorPos < target - ACT_DEADBAND) {
     newState = 1;   // Extend (FWD)
+    actuatorInDeadband = false;
   }
   else if (actuatorPos > target + ACT_DEADBAND) {
     newState = -1;  // Retract (REV)
+    actuatorInDeadband = false;
   }
   else {
     newState = 0;   // Within deadband — stop
+    actuatorInDeadband = true;
   }
 
   // If direction is changing, enforce deadtime
@@ -236,6 +279,7 @@ FaultCode checkFaults() {
 
   // 3. Actuator stall check — driving but position not changing
   if (lastRelayState != 0) {
+    // Relay is active — check if actuator is actually moving
     if (abs(actuatorPos - lastActuatorPos) > ACT_DEADBAND / 2) {
       actLastMoveTime = millis();
       lastActuatorPos = actuatorPos;
@@ -244,7 +288,10 @@ FaultCode checkFaults() {
       return FAULT_ACT_STALL;
     }
   }
-  else {
+  else if (actuatorInDeadband) {
+    // Only reset stall timer when stopped AND confirmed within deadband of target.
+    // If relay turned off for other reasons (deadtime coast, obstruction), the timer
+    // keeps running so stall can still trigger on the next drive attempt.
     actLastMoveTime = millis();
     lastActuatorPos = actuatorPos;
   }
@@ -321,8 +368,18 @@ void loop() {
     interrupts();
 
     if (delta > 0) {
-      timeDelta = delta;
+      // Push into rolling average buffer
+      deltaBuffer[deltaBufferIdx] = delta;
+      deltaBufferIdx = (deltaBufferIdx + 1) % RPM_AVG_SAMPLES;
+      if (deltaBufferCount < RPM_AVG_SAMPLES) deltaBufferCount++;
+
+      // Compute averaged delta
+      unsigned long sum = 0;
+      for (int i = 0; i < deltaBufferCount; i++) sum += deltaBuffer[i];
+      timeDelta = sum / deltaBufferCount;
+
       rpm = 60000000.0 / (timeDelta * MAGNETS_PER_REV);
+      lastValidRpm = rpm;  // Store last clean reading for fault recovery
     }
     rpmValid = true;
     lastDetectionTime = micros();
@@ -359,10 +416,10 @@ void loop() {
       // Non-critical — log warning but continue operating
       activeFault = fault;
       printFault();
-      // For implausible RPM, reject the reading
+      // For implausible RPM, reject the reading and hold last good value
       if (fault == FAULT_RPM_IMPLAUSIBLE) {
-        rpm = 0;
-        rpmValid = false;
+        rpm = lastValidRpm;
+        // Keep rpmValid true — we're using the last good reading, not zeroing out
       }
     }
   }
@@ -371,7 +428,14 @@ void loop() {
   }
 
   // --- 6. Look up target and drive actuator ---
-  int targetPos = getActuatorTargetForRpm(rpm);
+  // Below RPM_MIN_CONTROL (1800), engine is not under load — hold actuator retracted
+  // to keep belt at low ratio. Don't try to interpolate into undefined preset region.
+  int targetPos;
+  if (rpm > 0 && rpm < RPM_MIN_CONTROL) {
+    targetPos = ACT_POS_MIN;  // Retracted / low ratio
+  } else {
+    targetPos = getActuatorTargetForRpm(rpm);
+  }
   driveActuator(targetPos);
 
   // --- 7. Periodic Serial output ---

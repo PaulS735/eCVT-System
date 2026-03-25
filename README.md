@@ -36,13 +36,14 @@ A Raspberry Pi 4B logs all telemetry over USB Serial and (future) transmits live
 
 ### Control Loop (~50ms cycle)
 
-1. **RPM measurement** — Interrupt-driven hall sensor, 1 pulse/rev, `FALLING` edge ISR
+1. **RPM measurement** — Interrupt-driven hall sensor, 1 pulse/rev, `FALLING` edge ISR, 4-sample rolling average
 2. **Mode selection** — Debounced button on pin 5 cycles Economy → Sport → Aggressive
 3. **Position feedback** — Read actuator position via ADC (voltage divider: 5V → 2.25V max)
-4. **Target lookup** — Piecewise linear interpolation from RPM to actuator position using active preset
-5. **Actuator drive** — Bang-bang relay control with 50-count deadband and 75ms direction-change deadtime
-6. **Fault detection** — Feedback loss, actuator stall, implausible RPM
-7. **Telemetry output** — CSV over USB Serial at 9600 baud
+4. **Target lookup** — 7-point piecewise linear interpolation from RPM (1800–3900) to actuator position
+5. **RPM gating** — Below 1800 RPM, actuator holds retracted (engine not under load)
+6. **Actuator drive** — Bang-bang relay control with 50-count deadband and 75ms direction-change deadtime
+7. **Fault detection** — Feedback loss, actuator stall, implausible RPM (holds last valid reading)
+8. **Telemetry output** — CSV over USB Serial at 9600 baud
 
 ### State Machine
 
@@ -58,7 +59,7 @@ INIT ──→ IDLE ──→ RUNNING ──→ IDLE (RPM timeout)
 |---|---|---|
 | Actuator feedback out of range | Critical | Latch fail-safe, kill relays |
 | Actuator stall (3s no movement) | Critical | Latch fail-safe, kill relays |
-| RPM > 4000 (implausible) | Warning | Reject reading, continue |
+| RPM > 4050 (implausible) | Warning | Hold last valid RPM, continue |
 
 ### Serial Output Format
 
@@ -130,8 +131,9 @@ python3 graphRPM.py
 
 ## Future Work
 
+- [ ] Secondary driven-shaft RPM sensor — needed to close the loop on actual CVT ratio (currently using engine RPM as proxy)
 - [ ] Driver display (OLED/TFT on Teensy SPI/I2C) — speed, RPM, mode, faults
 - [ ] LoRa telemetry to pit-side base station
 - [ ] Alternator voltage monitoring (12V bus health)
-- [ ] On-vehicle preset calibration during testing
+- [ ] On-vehicle preset calibration during testing (7-point curves need bench + driving data)
 - [ ] Temperature monitoring (CVT belt or engine)

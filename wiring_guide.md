@@ -47,8 +47,8 @@
      |                               |
   +--+--+                      Teensy Pin A1
   |     |
-[HALL] [POT]
-Pin 2  Pin A8
+[HALL] [MODE BTN]
+Pin 2   Pin 5
 ```
 
 ---
@@ -97,14 +97,12 @@ Buck Converter OUT+ (5V) --> Junction Point
 ```
 Teensy 3V3 Pin --> Junction Point
                         |
-                  +-----+-----+
-                  |           |
-            Hall Sensor    Potentiometer
-            VCC (10mA)     CW terminal (1mA)
+                  Hall Sensor
+                  VCC (10mA)
 ```
 
 - **Source:** Teensy 4.1 onboard 3.3V LDO, 250mA max output
-- **Total load:** ~11mA (well within 250mA capacity)
+- **Total load:** ~10mA (well within 250mA capacity)
 - **WARNING:** Do NOT power the LoRa module from this rail — it draws 120mA TX bursts and needs its own 3.3V regulator
 
 ### 2.4 Ground
@@ -118,7 +116,7 @@ Relay Module GND --+---- COMMON GROUND POINT
 Teensy GND --------+     (single terminal block
 Pi GND ------------+      or bus bar)
 Hall Sensor GND ---+
-Pot CCW terminal --+
+Mode Button GND ---+
 Actuator (via relay NO contacts)
 ```
 
@@ -134,9 +132,9 @@ Actuator (via relay NO contacts)
 | **3** | PIN_RELAY_FWD | OUTPUT | Relay module IN1 | Digital, active LOW | HIGH = relay off, LOW = relay on (extend actuator) |
 | **4** | PIN_RELAY_REV | OUTPUT | Relay module IN2 | Digital, active LOW | HIGH = relay off, LOW = relay on (retract actuator) |
 | **A1** | PIN_ACT_POS | ANALOG IN | Actuator WHITE wire (through voltage divider) | Analog 0–2.25V | 12-bit ADC, 0–2794 counts usable range |
-| **A8** | PIN_POT | ANALOG IN | Potentiometer wiper | Analog 0–3.3V | 12-bit ADC, 0–4095 counts, 3 preset zones |
+| **5** | PIN_MODE_BTN | INPUT_PULLUP | Momentary push button (to GND) | Digital, active LOW | Cycles Economy → Sport → Aggressive, 200ms debounce |
 | **LED_BUILTIN** | — | OUTPUT | Onboard LED | Digital | Blinks on hall pulse detection |
-| **USB** | — | — | Pi USB-A port | USB CDC Serial | 115200 baud, also provides 5V power to Teensy |
+| **USB** | — | — | Pi USB-A port | USB CDC Serial | 9600 baud, also provides 5V power to Teensy |
 | **3V3** | — | POWER OUT | Hall sensor VCC, Pot CW terminal | 3.3V regulated | Max 250mA from onboard LDO |
 | **GND** | — | GROUND | Common ground bus | — | Multiple GND pins available, use any |
 
@@ -154,7 +152,7 @@ Actuator (via relay NO contacts)
 | Port | Connected To | Purpose |
 |------|-------------|---------|
 | **USB-C (power)** | Buck converter 5V output | Power input, 5V @ ≥2.5A required |
-| **USB-A #1** | Teensy 4.1 USB | Serial telemetry (115200 baud) + powers Teensy |
+| **USB-A #1** | Teensy 4.1 USB | Serial telemetry (9600 baud) + powers Teensy |
 | **USB-A #2** | (Optional) USB drive | Backup log file storage |
 | **GPIO SPI** | LoRa RFM95W (future) | MOSI=GPIO10, MISO=GPIO9, SCK=GPIO11, CS=GPIO8, DIO0=GPIO24, RST=GPIO25 |
 
@@ -193,28 +191,26 @@ Actuator (via relay NO contacts)
 - One magnet = one pulse per revolution
 - Secure with mechanical retention (bracket or epoxy + zip tie)
 
-### 5.2 Potentiometer (10kΩ Linear Taper)
+### 5.2 Mode Button (Momentary Push Button)
 
 ```
-                  Potentiometer
+                  BUTTON
                   +--------+
-  Teensy 3V3 --->| CW     |  (clockwise terminal)
-  Teensy A8  <---| WIPER  |  (center terminal)
-  Teensy GND --->| CCW    |  (counter-clockwise terminal)
+  Teensy Pin 5 <--| Term 1 |
+  Teensy GND ---->| Term 2 |
                   +--------+
 ```
 
 | Wire | From | To | Color Suggestion |
 |------|------|----|-----------------|
-| High | Teensy 3V3 | Pot CW terminal | Red |
-| Wiper | Pot center terminal | Teensy A8 | Yellow |
-| Low | Common ground | Pot CCW terminal | Black |
+| Signal | Button terminal 1 | Teensy Pin 5 | Yellow |
+| Ground | Button terminal 2 | Common ground | Black |
 
-**ADC Mapping (12-bit, 0–4095):**
-- Full CCW: 0V → ADC 0 → Economy mode
-- Mid: 1.65V → ADC ~2048 → Sport mode
-- Full CW: 3.3V → ADC 4095 → Aggressive mode
-- Zone boundaries: 1365 and 2730
+**Behavior:**
+- Teensy pin 5 uses `INPUT_PULLUP` — reads HIGH at rest, LOW when pressed
+- Each press cycles: Economy → Sport → Aggressive → Economy
+- 200ms debounce in firmware prevents bounce from registering multiple presses
+- No external resistors needed — internal pullup handles idle state
 
 ### 5.3 Dual Relay Module (H-Bridge)
 
@@ -346,10 +342,10 @@ Connected to Raspberry Pi GPIO (SPI bus):
 | Teensy 3.3V LDO | 3.3V regulated | Power | 250mA max |
 | Hall sensor output | 0V or 3.3V | Digital (open-drain + pullup) | LOW = magnet present |
 | Relay IN1/IN2 | 0V or 3.3V | Digital output from Teensy | LOW = relay ON (active LOW) |
-| Potentiometer wiper | 0–3.3V | Analog | Linear with rotation |
+| Mode button signal | 0V or 3.3V | Digital (INPUT_PULLUP) | LOW = pressed |
 | Actuator feedback (raw) | 0–5V | Analog | **NOT safe for Teensy directly** |
 | Actuator feedback (divided) | 0–2.25V | Analog | Safe for Teensy ADC |
-| USB Serial (Teensy↔Pi) | USB levels | Digital/Serial | 115200 baud |
+| USB Serial (Teensy↔Pi) | USB levels | Digital/Serial | 9600 baud |
 
 ---
 
@@ -412,15 +408,15 @@ Use this checklist when building the harness and during pre-event inspection:
 - [ ] No visible wire damage, chafing, or loose connections
 - [ ] Fuse intact (not blown)
 - [ ] Enclosure sealed, no water ingress from previous event
-- [ ] Potentiometer knob turns freely through full range
+- [ ] Mode button clicks cleanly and springs back
 - [ ] Hall sensor secure and within 3mm of magnet
 
 ### Functional Test (Engine Off)
 
 - [ ] Power on system → both relay modules click OFF (default state)
-- [ ] Turn pot full CCW → Serial prints "Preset: Economy"
-- [ ] Turn pot to mid → Serial prints "Preset: Sport"
-- [ ] Turn pot full CW → Serial prints "Preset: Aggressive"
+- [ ] Press mode button once → Serial prints "Preset: Sport"
+- [ ] Press again → Serial prints "Preset: Aggressive"
+- [ ] Press again → Serial prints "Preset: Economy" (cycles back)
 - [ ] Read actuator position on Serial → value changes when actuator is manually pushed
 - [ ] No "FAULT" messages on Serial at idle
 
@@ -431,4 +427,4 @@ Use this checklist when building the harness and during pre-event inspection:
 - [ ] Actuator moves in response to RPM changes
 - [ ] Actuator stops when within deadband of target
 - [ ] No relay chattering or buzzing
-- [ ] Serial output is clean CSV at 115200 baud (no garbled characters)
+- [ ] Serial output is clean CSV at 9600 baud (no garbled characters)

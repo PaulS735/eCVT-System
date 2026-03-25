@@ -29,7 +29,7 @@ Alternator 12 V ──┬── PQ12-100-6-R Actuator (via relay H-bridge)
                         ├── Raspberry Pi 4B (USB-C, 5 V)
                         │    └── Teensy 4.1 (USB, 5 V from Pi)
                         │         ├── Hall Effect Sensor (3.3 V from Teensy LDO)
-                        │         └── Potentiometer (3.3 V from Teensy LDO)
+                        │         └── Mode Button (Pin 5, INPUT_PULLUP)
                         └── Relay Module Logic (5 V, optocoupler + coils)
 ```
 
@@ -45,7 +45,7 @@ The LoRa RFM95W module is planned but not yet implemented; it is included in the
 | Teensy 4.1 | 5 V (from Pi USB) | 0.10 A | 0.10 A | USB powered |
 | Relay module logic | 5 V (from buck) | 0.050 A | 0.10 A | 2 relay coils + optocouplers |
 | Hall effect sensor | 3.3 V (from Teensy) | 0.010 A | 0.010 A | A3144 or equivalent |
-| Potentiometer | 3.3 V (from Teensy) | 0.001 A | 0.001 A | 10 k-ohm divider |
+| Mode button | 3.3 V (Teensy pullup) | ~0 A | ~0 A | Momentary, internal pullup |
 | LoRa RFM95W | 3.3 V (external reg) | 0.012 A RX | 0.120 A TX burst | Not yet implemented |
 
 ### 1.3 Buck Converter Load Analysis
@@ -170,17 +170,15 @@ Over 4 hours, total energy dissipated = 1.3 W x 14400 s = **18.7 kJ** -- trivial
 
 The eCVT does not use the full 100 mm stroke for each shift. The actuator positions correspond to discrete ratio presets along the CVT's sheave travel. Typical shifting moves the actuator between adjacent preset positions.
 
-For a CVT with 4--6 preset ratio positions spread over 100 mm:
+Each preset uses 7 breakpoints spread over the 1800--3900 RPM operating range. Actuator positions span approximately ADC 400--2700, covering most of the 100 mm stroke.
 
 ```
-  Position spacing = 100 mm / (N_positions - 1)
+  Position spacing = stroke_used / (N_positions - 1)
 
-  For 5 positions:  100 / 4 = 25 mm per step
-  For 6 positions:  100 / 5 = 20 mm per step
-  For 4 positions:  100 / 3 = 33 mm per step
+  For 7 positions over ~80 mm used:  80 / 6 ≈ 13 mm per step
 ```
 
-**Typical per-shift stroke: 10--30 mm** (one or two adjacent positions).
+**Typical per-shift stroke: 10--15 mm** (one adjacent breakpoint).
 
 ### 2.3 Shift Time Calculation
 
@@ -191,9 +189,9 @@ Using the rated-load speed of 0.20 m/s:
 ```
   t = distance / speed
 
+  For 13 mm step:  t = 0.013 / 0.20 =  65 ms
   For 20 mm step:  t = 0.020 / 0.20 = 100 ms
-  For 25 mm step:  t = 0.025 / 0.20 = 125 ms
-  For 30 mm step:  t = 0.030 / 0.20 = 150 ms
+  For 26 mm step:  t = 0.026 / 0.20 = 130 ms
 ```
 
 **Time for full-stroke travel (worst case):**
@@ -209,14 +207,14 @@ Using the rated-load speed of 0.20 m/s:
 
 | Scenario | Time | Meets SR_07? |
 |---|---|---|
-| Adjacent position, rated load (25 mm) | 125 ms | YES |
-| Two-position jump, rated load (50 mm) | 250 ms | YES (boundary) |
+| Adjacent position, rated load (13 mm) | 65 ms | YES |
+| Two-position jump, rated load (26 mm) | 130 ms | YES |
 | Full stroke, rated load (100 mm) | 500 ms | NO |
 | Full stroke, no load (100 mm) | 250 ms | YES |
 
-Adjacent-position shifts comfortably meet the 250 ms target. A full-stroke shift under load requires 500 ms and does not meet SR_07. However, full-stroke shifts (low to high or high to low in a single command) are rare in normal driving. The control strategy should limit maximum step size or accept the 500 ms latency for emergency full-range shifts.
+Adjacent-position shifts (13 mm with 7 breakpoints) comfortably meet the 250 ms target at 65 ms. A full-stroke shift under load requires 500 ms and does not meet SR_07. However, full-stroke shifts (low to high or high to low in a single command) are rare in normal driving — the RPM-based control loop moves incrementally through breakpoints.
 
-> **Conclusion:** SR_07 is met for typical single-step shifts (125 ms << 250 ms). Multi-step shifts may exceed 250 ms under load but remain under 500 ms.
+> **Conclusion:** SR_07 is met for typical single-step shifts (65 ms << 250 ms). Multi-step shifts may exceed 250 ms under load but remain under 500 ms.
 
 **SR_16: Command cycle time < 100 ms**
 
@@ -240,7 +238,7 @@ The relay H-bridge uses a **75 ms deadtime** between switching directions. This 
 - The 75 ms deadtime only applies when the actuator **reverses direction**. If the actuator is extending and receives a command to retract, the firmware waits 75 ms after de-energizing the extend relay before energizing the retract relay.
 - During a single-direction shift (the common case), deadtime is zero.
 - In the worst case of oscillation around the target (overshoot requiring reversal), the 75 ms adds to the settling time but does not affect the initial response.
-- For a 125 ms shift, a single reversal adds 75 ms, bringing total to 200 ms -- still under 250 ms.
+- For a 65 ms shift, a single reversal adds 75 ms, bringing total to 140 ms -- still under 250 ms.
 
 > **Conclusion:** The 75 ms relay deadtime does not prevent compliance with SR_07 for typical shifts. It adds settling time for overshoot correction but this is acceptable.
 
@@ -340,7 +338,7 @@ The actuator will stop driving once the measured position is within +/- 1.79 mm 
   Relay switching time:      5-10 ms
   Relay deadtime (reversal): 75 ms
   Telemetry print interval:  50 ms (does not gate control)
-  Typical shift time:        100-150 ms (one position step, under load)
+  Typical shift time:        65 ms (one position step of ~13 mm, under load)
   Worst-case shift time:     500 ms (full stroke, under load)
   Position resolution:       0.036 mm/count (28 counts/mm)
   Deadband:                  +/- 1.79 mm

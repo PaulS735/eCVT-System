@@ -86,7 +86,7 @@ The initialization state executes once during `setup()`. It performs all hardwar
 
 | Action                  | Detail                                                        |
 |-------------------------|---------------------------------------------------------------|
-| Configure GPIO pins     | Set relay pins as OUTPUT, actuator feedback and pot as INPUT  |
+| Configure GPIO pins     | Set relay pins as OUTPUT, mode button as INPUT_PULLUP         |
 | Start serial            | Initialize USB serial for telemetry and diagnostics           |
 | Attach hall effect ISR  | Bind the hall sensor input pin to an interrupt on FALLING edge|
 | Set relays to OFF state | Both relay outputs driven HIGH (active-LOW logic = OFF)       |
@@ -120,7 +120,7 @@ The primary operating state. The control loop actively manages CVT ratio by driv
 | Behavior                    | Detail                                                     |
 |-----------------------------|------------------------------------------------------------|
 | RPM calculation             | ISR captures pulse timing; loop computes RPM               |
-| Preset selection            | Potentiometer reading selects Economy / Sport / Aggressive  |
+| Preset selection            | Button press cycles Economy / Sport / Aggressive            |
 | Actuator control            | Bang-bang control drives actuator toward target position    |
 | Telemetry output            | Serial telemetry transmitted every 50 ms                   |
 
@@ -189,25 +189,27 @@ The following operations execute each iteration of `loop()` while in the RUNNING
 1. **Hall effect ISR** fires on the **FALLING edge** of the sensor signal.
 2. ISR captures the time delta between consecutive pulses using `micros()`.
 3. The main loop copies the volatile ISR data with **interrupts temporarily disabled** to prevent torn reads.
-4. RPM is calculated as:
+4. The raw pulse delta is pushed into a **4-sample rolling average buffer**. This smooths out magnet bounce and marginal ISR triggers under vehicle vibration. At 3900 RPM (worst case), pulse period is ~15,385 µs; 4 samples add ~46 ms of latency, well within the 50 ms control interval.
+5. RPM is calculated from the averaged delta as:
 
 ```
-RPM = 60,000,000 / (pulseDelta_us * magnetsPerRev)
+RPM = 60,000,000 / (avgDelta_us * magnetsPerRev)
 ```
 
-5. If no pulse has been received for **1 second**, RPM is considered invalid and the system transitions to IDLE.
+6. If no pulse has been received for **1 second**, RPM is considered invalid and the system transitions to IDLE.
+7. If RPM is below **1800** (RPM_MIN_CONTROL), the engine is not under load and the actuator holds at the retracted/low-ratio position. Control presets only apply in the **1800–3900 RPM** operating range.
 
 ### 4.2 Preset Selection
 
-The mode potentiometer is read on a **12-bit ADC** (0--4095 range). Three zones select the performance preset:
+A momentary push button on **Pin 5** (INPUT_PULLUP, wired to GND) cycles through the three performance presets. Each press advances to the next mode with **200ms debounce** to reject contact bounce.
 
-| ADC Range   | Preset      |
-|-------------|-------------|
-| 0 -- 1364   | Economy     |
-| 1365 -- 2729| Sport       |
-| 2730 -- 4095| Aggressive  |
+| Press Count (mod 3) | Preset      |
+|----------------------|-------------|
+| 0 (default on boot)  | Economy     |
+| 1                     | Sport       |
+| 2                     | Aggressive  |
 
-Each preset defines a piecewise linear curve mapping engine RPM to a target actuator position.
+Each preset defines a 7-point piecewise linear curve mapping engine RPM (1800–3900) to a target actuator position. A preset change is logged to serial when it occurs.
 
 ### 4.3 Actuator Position Feedback
 
@@ -251,8 +253,7 @@ Every **50 ms**, the following data is transmitted over USB serial:
 |-----------------------------------|--------------|----------------------------------------------------------|------------------------------------------------------|
 | Actuator feedback out of range    | CRITICAL     | ADC reading outside valid window (wire break or short)   | Actuator stopped, fault latched, enters FAIL_SAFE    |
 | Actuator stall                    | CRITICAL     | Driving actuator but position unchanged for 3 seconds    | Actuator stopped, fault latched, enters FAIL_SAFE    |
-| RPM implausible (> 4000 RPM)     | NON-CRITICAL | Calculated RPM exceeds maximum plausible engine speed    | Reading rejected, previous valid RPM retained        |
-| Potentiometer stuck at rail       | NON-CRITICAL | Pot ADC reads at 0 or 4095 for sustained period          | Warning logged, system continues on last valid preset|
+| RPM implausible (> 4050 RPM)     | NON-CRITICAL | Calculated RPM exceeds requirement ceiling + noise margin | Reading rejected, last valid RPM retained            |
 
 ### Critical Fault Behavior
 - Both relay outputs forced **HIGH** (actuator drive disabled)
