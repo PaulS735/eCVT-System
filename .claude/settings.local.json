@@ -63,7 +63,8 @@
       "Read(//c/Users/scpks/Documents/**)",
       "Bash(\"C:/Users/scpks/Documents/Data Logging Teensy/dl_err.txt\")",
       "Bash(\"C:/Users/scpks/Documents/Data Logging Teensy/final_out.txt\" 2)",
-      "Bash(\"C:/Users/scpks/Documents/Data Logging Teensy/final_err.txt\")"
+      "Bash(\"C:/Users/scpks/Documents/Data Logging Teensy/final_err.txt\")",
+      "Bash(cmd /c \"dir /b \"\"C:\\\\Users\\\\scpks\\\\Documents\\\\Data Logging Teensy\"\"\")"
     ]
   }
 }

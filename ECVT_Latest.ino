@@ -5,7 +5,7 @@
 const int PIN_HALL      = 2;   // Hall effect sensor (interrupt-capable, INPUT_PULLUP)
 const int PIN_RELAY_FWD = 3;   // Forward relay control (active LOW)
 const int PIN_RELAY_REV = 4;   // Reverse relay control (active LOW)
-const int PIN_POT       = A8;  // Potentiometer mode selector (analog in)
+const int PIN_MODE_BTN  = 5;   // Mode cycle button (INPUT_PULLUP, press = LOW)
 const int PIN_ACT_POS   = A1;  // Actuator position feedback (analog in)
 // White wire is 0-5V — voltage divider required: 10k top + 8.2k bottom before this pin
 
@@ -22,11 +22,12 @@ const int ACT_POS_MIN  = 100;  // Software position clamp — minimum safe ADC c
 const int ACT_POS_MAX  = 2800; // Software position clamp — maximum safe ADC count (voltage divider tops out ~2794)
 // Position scale: 0 = fully retracted, ~2794 = fully extended (voltage divider limits to ~2.25V)
 
+// --- Button debounce ---
+const unsigned long BTN_DEBOUNCE_MS = 200;  // Minimum ms between accepted presses
+
 // --- Fault detection constants ---
 const int ACT_FEEDBACK_MIN     = 10;    // Below this = feedback wire likely broken/disconnected
 const int ACT_FEEDBACK_MAX     = 3000;  // Above this = feedback wire shorted to power
-const int POT_STUCK_THRESHOLD  = 5;     // ADC counts — less change than this over N reads = stuck
-const unsigned long POT_STUCK_TIME_MS = 5000;  // How long pot must be static to flag stuck
 const float RPM_MAX_VALID      = 4000.0; // Above this RPM = sensor noise / false trigger
 const unsigned long ACT_STALL_TIMEOUT_MS = 3000; // If actuator hasn't moved in this long while driving
 
@@ -42,7 +43,7 @@ volatile bool newPulse = false;
 enum FaultCode {
   FAULT_NONE           = 0,
   FAULT_ACT_FEEDBACK   = 1,  // Actuator position feedback out of range
-  FAULT_POT_STUCK      = 2,  // Potentiometer stuck at one value
+  FAULT_BTN_RESERVED   = 2,  // Reserved
   FAULT_RPM_IMPLAUSIBLE = 3, // RPM reading above physical limit
   FAULT_ACT_STALL      = 4   // Actuator not moving despite being driven
 };
@@ -55,14 +56,16 @@ unsigned long lastDetectionTime = 0;
 unsigned long timeDelta = 0;
 float rpm = 0;
 bool rpmValid = false;
-int potValue = 0;
 int actuatorPos = 0;
 unsigned long lastDirectionChange = 0;
 int lastRelayState = 0;  // 0=stopped, 1=fwd, -1=rev
 
+// Mode button state
+int presetIndex = 0;  // 0=Economy, 1=Sport, 2=Aggressive
+bool lastBtnState = HIGH;
+unsigned long lastBtnTime = 0;
+
 // Fault detection state
-int lastPotValue = 0;
-unsigned long potLastChangeTime = 0;
 int lastActuatorPos = 0;
 unsigned long actLastMoveTime = 0;
 unsigned long lastFaultPrintTime = 0;
@@ -117,29 +120,27 @@ float calculateTorque(float currentRpm) {
   return (ENGINE_HP * 5252.0) / currentRpm;
 }
 
-// --- Preset selection from potentiometer ---
-void selectPresetFromPot() {
-  potValue = analogRead(PIN_POT);
+// --- Preset list for cycling ---
+const RpmPreset* PRESETS[] = { &PRESET_ECONOMY, &PRESET_SPORT, &PRESET_AGGRESSIVE };
+const int NUM_PRESETS = 3;
 
-  // 12-bit ADC: 0-4095 divided into 3 zones
-  if (potValue < 1365) {
-    if (activePreset != &PRESET_ECONOMY) {
-      activePreset = &PRESET_ECONOMY;
-      Serial.println("Preset: Economy");
+// --- Mode selection via button press ---
+// Button wired between PIN_MODE_BTN and GND, uses INPUT_PULLUP
+// Each press cycles: Economy → Sport → Aggressive → Economy ...
+void selectPresetFromButton() {
+  bool btnState = digitalRead(PIN_MODE_BTN);
+
+  // Detect falling edge (press) with debounce
+  if (btnState == LOW && lastBtnState == HIGH) {
+    if (millis() - lastBtnTime > BTN_DEBOUNCE_MS) {
+      presetIndex = (presetIndex + 1) % NUM_PRESETS;
+      activePreset = PRESETS[presetIndex];
+      Serial.print("Preset: ");
+      Serial.println(activePreset->name);
+      lastBtnTime = millis();
     }
   }
-  else if (potValue < 2730) {
-    if (activePreset != &PRESET_SPORT) {
-      activePreset = &PRESET_SPORT;
-      Serial.println("Preset: Sport");
-    }
-  }
-  else {
-    if (activePreset != &PRESET_AGGRESSIVE) {
-      activePreset = &PRESET_AGGRESSIVE;
-      Serial.println("Preset: Aggressive");
-    }
-  }
+  lastBtnState = btnState;
 }
 
 // --- Look up actuator target position from RPM and active preset ---
@@ -228,24 +229,12 @@ FaultCode checkFaults() {
     return FAULT_ACT_FEEDBACK;
   }
 
-  // 2. Potentiometer stuck check
-  if (abs(potValue - lastPotValue) > POT_STUCK_THRESHOLD) {
-    potLastChangeTime = millis();
-    lastPotValue = potValue;
-  }
-  else if (millis() - potLastChangeTime > POT_STUCK_TIME_MS) {
-    // Only flag if pot is at a rail (0 or 4095) — mid-range "stuck" is just the user not turning it
-    if (potValue < 10 || potValue > 4085) {
-      return FAULT_POT_STUCK;
-    }
-  }
-
-  // 3. RPM plausibility check
+  // 2. RPM plausibility check
   if (rpmValid && rpm > RPM_MAX_VALID) {
     return FAULT_RPM_IMPLAUSIBLE;
   }
 
-  // 4. Actuator stall check — driving but position not changing
+  // 3. Actuator stall check — driving but position not changing
   if (lastRelayState != 0) {
     if (abs(actuatorPos - lastActuatorPos) > ACT_DEADBAND / 2) {
       actLastMoveTime = millis();
@@ -279,7 +268,7 @@ void printFault() {
   Serial.print("FAULT,");
   switch (activeFault) {
     case FAULT_ACT_FEEDBACK:    Serial.print("ACT_FEEDBACK_LOST"); break;
-    case FAULT_POT_STUCK:       Serial.print("POT_STUCK"); break;
+    case FAULT_BTN_RESERVED:    Serial.print("RESERVED"); break;
     case FAULT_RPM_IMPLAUSIBLE: Serial.print("RPM_IMPLAUSIBLE"); break;
     case FAULT_ACT_STALL:       Serial.print("ACT_STALL"); break;
     default:                    Serial.print("UNKNOWN"); break;
@@ -304,12 +293,14 @@ void setup() {
   digitalWrite(PIN_RELAY_FWD, HIGH);
   digitalWrite(PIN_RELAY_REV, HIGH);
 
-  // No pinMode needed for analog input pins (PIN_POT, PIN_ACT_POS)
+  // Mode button — INPUT_PULLUP, button connects pin to GND
+  pinMode(PIN_MODE_BTN, INPUT_PULLUP);
+
+  // No pinMode needed for analog input pin (PIN_ACT_POS)
 
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Initialize fault detection timers
-  potLastChangeTime = millis();
   actLastMoveTime = millis();
 }
 
@@ -350,8 +341,8 @@ void loop() {
     Serial.println(activePreset->name);
   }
 
-  // --- 3. Read potentiometer and select preset ---
-  selectPresetFromPot();
+  // --- 3. Read mode button and select preset ---
+  selectPresetFromButton();
 
   // --- 4. Read actuator position feedback ---
   actuatorPos = analogRead(PIN_ACT_POS);
