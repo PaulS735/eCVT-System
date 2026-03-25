@@ -1,0 +1,28 @@
+# Runtime data
+datalog.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+
+# Build artifacts
+*.elf
+*.hex
+*.bin
+.pio/
+
+# Reference/binary files
+*.xlsx
+*.zip
+*.docx
+*.pptx
