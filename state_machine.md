@@ -252,7 +252,7 @@ Every **50 ms**, the following data is transmitted over USB serial:
 | Fault Condition                   | Severity     | Detection Method                                         | System Response                                      |
 |-----------------------------------|--------------|----------------------------------------------------------|------------------------------------------------------|
 | Actuator feedback out of range    | CRITICAL     | ADC reading outside valid window (wire break or short)   | Actuator stopped, fault latched, enters FAIL_SAFE    |
-| Actuator stall                    | CRITICAL     | Driving actuator but position unchanged for 3 seconds    | Actuator stopped, fault latched, enters FAIL_SAFE    |
+| Actuator stall                    | CRITICAL     | Driving actuator but position unchanged for 5 seconds    | Actuator stopped, fault latched, enters FAIL_SAFE    |
 | RPM implausible (> 4050 RPM)     | NON-CRITICAL | Calculated RPM exceeds requirement ceiling + noise margin | Reading rejected, last valid RPM retained            |
 
 ### Critical Fault Behavior

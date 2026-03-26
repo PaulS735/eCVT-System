@@ -19,7 +19,7 @@ A Raspberry Pi 4B logs all telemetry over USB Serial and (future) transmits live
 | MCU | Teensy 4.1 (600MHz Cortex-M7) | USB to Pi |
 | Hall Sensor | Unipolar (A3144 or equiv.) | Pin 2 (interrupt, INPUT_PULLUP) |
 | Relay Module | Dual SPDT, optocoupler-isolated, active LOW | Pin 3 (FWD), Pin 4 (REV) |
-| Linear Actuator | Actuonix PQ12-100-6-R (100mm, 12V) | Relays (motor), Pin A1 (position feedback) |
+| Linear Actuator | 12V, 152mm (6") stroke, 2000N with feedback | Relays (motor), Pin A1 (position feedback) |
 | Mode Button | Momentary push button | Pin 5 (INPUT_PULLUP, cycles presets) |
 | Data Logger | Raspberry Pi 4B | USB Serial from Teensy |
 | Radio (future) | RFM95W LoRa 915MHz | Pi SPI bus |
@@ -29,8 +29,8 @@ A Raspberry Pi 4B logs all telemetry over USB Serial and (future) transmits live
 
 | | Typical | Peak (actuator stall) |
 |---|---|---|
-| 12V draw | 2.6A | 16.6A |
-| 18A Baja limit | 14% used | 92% (transient only) |
+| 12V draw | 4.6A | 16.6A |
+| 18A Baja limit | 25% used | 92% (transient only) |
 
 ## Firmware Architecture
 
@@ -58,7 +58,7 @@ INIT ──→ IDLE ──→ RUNNING ──→ IDLE (RPM timeout)
 | Fault | Severity | Response |
 |---|---|---|
 | Actuator feedback out of range | Critical | Latch fail-safe, kill relays |
-| Actuator stall (3s no movement) | Critical | Latch fail-safe, kill relays |
+| Actuator stall (5s no movement) | Critical | Latch fail-safe, kill relays |
 | RPM > 4050 (implausible) | Warning | Hold last valid RPM, continue |
 
 ### Serial Output Format
@@ -124,7 +124,7 @@ python3 graphRPM.py
 
 ## Wiring Notes
 
-- **Actuator white wire (position feedback) is 0–5V** — connect through voltage divider (10k + 8.2k) before Teensy A1. Direct connection will damage the ADC.
+- **Actuator white wire (position feedback) is 0–5V** over 152mm stroke — connect through voltage divider (10k + 8.2k) before Teensy A1. Direct connection will damage the ADC.
 - **Relay module VCC is 5V** — coils need 5V from the buck converter, not Teensy 3.3V. Control pins (IN1/IN2) accept 3.3V logic fine.
 - **Mode button** — wire between pin 5 and GND. Internal pullup handles the rest.
 - **Hall sensor** — 3.3V supply from Teensy 3V3 pin. Open-drain output with internal pullup on pin 2.

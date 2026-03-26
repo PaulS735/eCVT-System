@@ -1,5 +1,6 @@
 // eCVT Firmware — Knight Racing Baja SAE
 // Teensy 4.1 — Relay H-bridge actuator control with hall effect RPM
+// Actuator: 12V, 6-inch (152mm) stroke, 2000N linear actuator with position feedback
 
 // --- Pin assignments ---
 const int PIN_HALL      = 2;   // Hall effect sensor (interrupt-capable, INPUT_PULLUP)
@@ -20,7 +21,9 @@ const unsigned long FAULT_PRINT_INTERVAL_MS = 1000; // Fault messages every 1s
 const int ACT_DEADBAND = 50;   // ADC counts — stop relay when within this of target
 const int ACT_POS_MIN  = 100;  // Software position clamp — minimum safe ADC count
 const int ACT_POS_MAX  = 2800; // Software position clamp — maximum safe ADC count (voltage divider tops out ~2794)
+// Actuator: 12V, 152mm stroke, 2000N, ~12mm/s under load (verify from datasheet)
 // Position scale: 0 = fully retracted, ~2794 = fully extended (voltage divider limits to ~2.25V)
+// Resolution: 152mm / 2794 counts ≈ 0.054 mm/count
 
 // --- Button debounce ---
 const unsigned long BTN_DEBOUNCE_MS = 200;  // Minimum ms between accepted presses
@@ -30,7 +33,8 @@ const int ACT_FEEDBACK_MIN     = 10;    // Below this = feedback wire likely bro
 const int ACT_FEEDBACK_MAX     = 3000;  // Above this = feedback wire shorted to power
 const float RPM_MAX_VALID      = 4050.0; // Requirement ceiling is 3900 RPM + 150 noise margin
 const float RPM_MIN_CONTROL    = 1800.0; // Below this = engine not under load, hold retracted
-const unsigned long ACT_STALL_TIMEOUT_MS = 3000; // If actuator hasn't moved in this long while driving
+const unsigned long ACT_STALL_TIMEOUT_MS = 5000; // If actuator hasn't moved in this long while driving
+// NOTE: 5s timeout accounts for the slower 152mm/2000N actuator (~12mm/s under load)
 
 // --- Engine specs ---
 const float ENGINE_HP = 10.0;  // Briggs & Stratton 10HP
@@ -88,7 +92,7 @@ const int MAX_BREAKPOINTS = 7;
 struct RpmPreset {
   const char* name;
   int rpmThresholds[MAX_BREAKPOINTS];
-  int actPositions[MAX_BREAKPOINTS];  // Actuator position targets in ADC counts (0-2794)
+  int actPositions[MAX_BREAKPOINTS];  // Actuator position targets in ADC counts (0-2794 = 0-152mm)
   int numPoints;
 };
 

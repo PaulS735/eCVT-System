@@ -37,7 +37,7 @@
      |                 |                |          |
   [Pi 4B]        [RELAY VCC]       NO1 (RED)   NO2 (BLACK)
   USB-C 5V       5V logic              |          |
-     |                          [PQ12-100-6-R ACTUATOR]
+     |                     [LINEAR ACTUATOR 12V/152mm/2000N]
   [USB-A]                         RED = motor +
      |                            BLACK = motor -
   [TEENSY 4.1]                    WHITE = position feedback
@@ -69,7 +69,7 @@ Alternator (+) --> 20A Inline Fuse --> Junction Point
 - **Source:** Vehicle alternator, 12V nominal (11.5–13V under load)
 - **Protection:** 20A inline blade fuse
 - **Consumers on 12V direct:**
-  - Linear actuator motor (through relay H-bridge): 2A typical, 10–15A stall
+  - Linear actuator motor (through relay H-bridge): ~4A typical, 10–15A stall (verify from datasheet)
   - Buck converter input: draws ~0.56A typical at 12V
 
 ### 2.2 5V Rail (Buck Converter Output)
@@ -226,7 +226,7 @@ Actuator (via relay NO contacts)
      |    |    |    |    |    |   |    |
   Pin3 Pin4  5V  GND  12V  |  12V   |
   (Teensy) (Buck) (Common) |  (fuse)|
-                         ACT RED  ACT BLACK
+                       ACT RED  ACT BLACK
 ```
 
 | Terminal | Connected To | Notes |
@@ -254,7 +254,7 @@ Actuator (via relay NO contacts)
 | HIGH | LOW | OFF | ON | **Retracting** (REV) |
 | LOW | LOW | ON | ON | **DEAD SHORT — NEVER DO THIS** |
 
-### 5.4 Linear Actuator (PQ12-100-6-R)
+### 5.4 Linear Actuator (12V, 152mm Stroke, 2000N)
 
 ```
   ACTUATOR
@@ -295,7 +295,8 @@ Actuator (via relay NO contacts)
 **Position Mapping:**
 - 0V (ADC 0) = Fully retracted
 - 5V (ADC ~2794 after divider) = Fully extended
-- Stroke: 100mm total
+- Stroke: 152mm (6 inches)
+- Resolution: 152mm / 2794 = 0.054 mm/count
 
 ### 5.5 Buck Converter (12V → 5V)
 
