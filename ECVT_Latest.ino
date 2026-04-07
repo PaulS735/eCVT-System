@@ -2,6 +2,9 @@
 // Teensy 4.1 — Relay H-bridge actuator control with hall effect RPM
 // Actuator: 12V, 6-inch (152mm) stroke, 2000N linear actuator with position feedback
 
+#include <Watchdog_t4.h>
+WDT_T4<WDT1> wdt;
+
 // --- Pin assignments ---
 const int PIN_HALL      = 2;   // Hall effect sensor (interrupt-capable, INPUT_PULLUP)
 const int PIN_RELAY_FWD = 3;   // Forward relay control (active LOW)
@@ -36,6 +39,18 @@ const float RPM_MIN_CONTROL    = 1800.0; // Below this = engine not under load, 
 const unsigned long ACT_STALL_TIMEOUT_MS = 5000; // If actuator hasn't moved in this long while driving
 // NOTE: 5s timeout accounts for the slower 152mm/2000N actuator (~12mm/s under load)
 
+// --- Position rate-of-change fault detection ---
+// At ~12mm/s and 0.054mm/count, max real rate is ~222 counts/sec (~11 counts/50ms).
+// Threshold of 150 counts/50ms gives large margin for real movement but catches
+// broken feedback wires or EMI spikes (which jump 1000+ counts instantly).
+const int ACT_MAX_RATE_PER_CYCLE = 150;       // Max ADC count change per check interval
+const unsigned long ACT_RATE_CHECK_MS = 50;    // Rate check interval
+
+// --- EMA filter for actuator position feedback ---
+// Alpha 0.15 with 50ms control loop gives ~300ms settling — smooths relay EMI
+// and alternator ripple without adding dangerous lag to position tracking.
+const float EMA_ALPHA = 0.15;
+
 // --- Engine specs ---
 const float ENGINE_HP = 10.0;  // Briggs & Stratton 10HP
 
@@ -59,7 +74,8 @@ enum FaultCode {
   FAULT_ACT_FEEDBACK   = 1,  // Actuator position feedback out of range
   FAULT_BTN_RESERVED   = 2,  // Reserved
   FAULT_RPM_IMPLAUSIBLE = 3, // RPM reading above physical limit
-  FAULT_ACT_STALL      = 4   // Actuator not moving despite being driven
+  FAULT_ACT_STALL      = 4,  // Actuator not moving despite being driven
+  FAULT_ACT_RATE       = 5   // Position feedback changed impossibly fast (wiring fault or EMI)
 };
 
 FaultCode activeFault = FAULT_NONE;
@@ -85,6 +101,14 @@ int lastActuatorPos = 0;
 unsigned long actLastMoveTime = 0;
 unsigned long lastFaultPrintTime = 0;
 bool actuatorInDeadband = false;  // Set by driveActuator when position is within target deadband
+
+// Rate-of-change fault detection state
+int prevPosForRate = -1;          // -1 = not yet initialized
+unsigned long lastRateCheckTime = 0;
+
+// EMA filter state
+float emaActuatorPos = 0.0;
+bool emaInitialized = false;
 
 // --- Preset structure ---
 const int MAX_BREAKPOINTS = 7;
@@ -276,12 +300,24 @@ FaultCode checkFaults() {
     return FAULT_ACT_FEEDBACK;
   }
 
-  // 2. RPM plausibility check
+  // 2. Position rate-of-change check — catches broken wires and EMI spikes
+  if (millis() - lastRateCheckTime >= ACT_RATE_CHECK_MS) {
+    if (prevPosForRate >= 0) {
+      int posDelta = abs(actuatorPos - prevPosForRate);
+      if (posDelta > ACT_MAX_RATE_PER_CYCLE) {
+        return FAULT_ACT_RATE;
+      }
+    }
+    prevPosForRate = actuatorPos;
+    lastRateCheckTime = millis();
+  }
+
+  // 3. RPM plausibility check
   if (rpmValid && rpm > RPM_MAX_VALID) {
     return FAULT_RPM_IMPLAUSIBLE;
   }
 
-  // 3. Actuator stall check — driving but position not changing
+  // 4. Actuator stall check — driving but position not changing
   if (lastRelayState != 0) {
     // Relay is active — check if actuator is actually moving
     if (abs(actuatorPos - lastActuatorPos) > ACT_DEADBAND / 2) {
@@ -322,12 +358,45 @@ void printFault() {
     case FAULT_BTN_RESERVED:    Serial.print("RESERVED"); break;
     case FAULT_RPM_IMPLAUSIBLE: Serial.print("RPM_IMPLAUSIBLE"); break;
     case FAULT_ACT_STALL:       Serial.print("ACT_STALL"); break;
+    case FAULT_ACT_RATE:        Serial.print("ACT_RATE_EXCEED"); break;
     default:                    Serial.print("UNKNOWN"); break;
   }
   Serial.print(",");
   Serial.print(actuatorPos);
   Serial.print(",");
   Serial.println(activePreset->name);
+}
+
+// --- Startup feedback calibration ---
+// Validates actuator feedback sensor at boot and initializes EMA filter.
+// Takes 32 averaged samples (~16ms) to reject noise. If reading is outside
+// the valid feedback range, enters fail-safe immediately (bad wiring).
+void calibrateFeedback() {
+  long sum = 0;
+  const int CAL_SAMPLES = 32;
+  for (int i = 0; i < CAL_SAMPLES; i++) {
+    sum += analogRead(PIN_ACT_POS);
+    delayMicroseconds(500);
+  }
+  int baseline = sum / CAL_SAMPLES;
+
+  // Initialize EMA filter with measured baseline — prevents cold-start transient
+  emaActuatorPos = (float)baseline;
+  emaInitialized = true;
+  actuatorPos = baseline;
+  lastActuatorPos = baseline;
+  prevPosForRate = baseline;
+
+  // Verify feedback is in valid range
+  if (baseline < ACT_FEEDBACK_MIN || baseline > ACT_FEEDBACK_MAX) {
+    Serial.print("CAL_FAIL,FEEDBACK_OUT_OF_RANGE,");
+    Serial.println(baseline);
+    enterFailSafe(FAULT_ACT_FEEDBACK);
+    return;
+  }
+
+  Serial.print("CAL_OK,BASELINE,");
+  Serial.println(baseline);
 }
 
 void setup() {
@@ -353,9 +422,20 @@ void setup() {
 
   // Initialize fault detection timers
   actLastMoveTime = millis();
+
+  // Validate feedback sensor and initialize EMA filter
+  calibrateFeedback();
+
+  // Hardware watchdog — resets MCU if loop() stalls for >500ms.
+  // Safe because fail-safe state (stopActuator) engages on any reset.
+  WDT_timings_t wdtConfig;
+  wdtConfig.timeout = 0.5;  // 500ms
+  wdt.begin(wdtConfig);
 }
 
 void loop() {
+  wdt.feed();  // Kick watchdog — must be called within 500ms or MCU resets
+
   // --- If in latched fault state, hold safe and report ---
   if (faultLatched) {
     stopActuator();
@@ -385,7 +465,9 @@ void loop() {
       rpm = 60000000.0 / (timeDelta * MAGNETS_PER_REV);
       lastValidRpm = rpm;  // Store last clean reading for fault recovery
     }
-    rpmValid = true;
+    // Only mark RPM as valid once the rolling average buffer is fully populated.
+    // First few samples would average with fewer points, producing unstable readings.
+    rpmValid = (deltaBufferCount >= RPM_AVG_SAMPLES);
     lastDetectionTime = micros();
     digitalWrite(LED_BUILTIN, HIGH);
   }
@@ -405,13 +487,20 @@ void loop() {
   // --- 3. Read mode button and select preset ---
   selectPresetFromButton();
 
-  // --- 4. Read actuator position feedback ---
-  actuatorPos = analogRead(PIN_ACT_POS);
+  // --- 4. Read actuator position feedback (EMA filtered) ---
+  int rawPos = analogRead(PIN_ACT_POS);
+  if (!emaInitialized) {
+    emaActuatorPos = (float)rawPos;
+    emaInitialized = true;
+  } else {
+    emaActuatorPos = EMA_ALPHA * rawPos + (1.0 - EMA_ALPHA) * emaActuatorPos;
+  }
+  actuatorPos = (int)(emaActuatorPos + 0.5);
 
   // --- 5. Fault detection ---
   FaultCode fault = checkFaults();
   if (fault != FAULT_NONE) {
-    if (fault == FAULT_ACT_FEEDBACK || fault == FAULT_ACT_STALL) {
+    if (fault == FAULT_ACT_FEEDBACK || fault == FAULT_ACT_STALL || fault == FAULT_ACT_RATE) {
       // Critical — latch into fail-safe
       enterFailSafe(fault);
       return;
