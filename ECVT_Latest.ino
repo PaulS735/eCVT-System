@@ -63,6 +63,15 @@ volatile bool newPulse = false;
 // A 4-sample rolling average of pulseDelta smooths out magnet bounce and marginal
 // ISR triggers under vibration. At 3900 RPM worst-case, pulse period is ~15,385 us.
 // 4 samples adds ~46 ms of latency — well within the 50 ms print/control interval.
+//
+// DESIGN NOTE — RPM spike blind spot:
+// A single-sample spike can only push the 4-sample average above RPM_MAX_VALID (4050)
+// when the true RPM is already near the ceiling (~3700+ RPM). At mid-range RPM the
+// spike is absorbed into the average without triggering FAULT_RPM_IMPLAUSIBLE — this
+// is intentional (prevents false faults from vibration) but means implausible-RPM
+// detection has reduced sensitivity below ~3700 RPM. Account for this during
+// on-vehicle calibration; if mid-range spike detection is required, reduce the
+// RPM_AVG_SAMPLES count or add a single-sample instantaneous check.
 const int RPM_AVG_SAMPLES = 4;
 unsigned long deltaBuffer[RPM_AVG_SAMPLES] = {0};
 int deltaBufferIdx = 0;

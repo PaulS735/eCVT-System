@@ -69,7 +69,11 @@
       "Bash(cmd /c \"cd /d \"\"C:\\\\Users\\\\scpks\\\\Documents\\\\Data Logging Teensy\"\" && git status && echo --- && git log --oneline -3 && echo --- && git diff --stat\")",
       "Bash(git -C \"C:/Users/scpks/Documents/Data Logging Teensy\" status)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(git -C \"/c/Users/scpks/Documents/Data Logging Teensy\" status)"
+      "Bash(git -C \"/c/Users/scpks/Documents/Data Logging Teensy\" status)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\scpks\\\\eCVT-System\" -Recurse -Include \"*.ino\", \"*.h\", \"*.cpp\", \"*.c\", \"*.json\", \"*.md\", \"*.txt\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Format-List)",
+      "Bash(python -c ' *)"
     ]
   }
 }
