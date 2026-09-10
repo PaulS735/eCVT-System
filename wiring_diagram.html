@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knight Racing eCVT — Wiring Diagram</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', 'Consolas', monospace;
+    overflow-x: auto;
+  }
+  h1 {
+    text-align: center;
+    padding: 18px;
+    font-size: 22px;
+    color: #00d4ff;
+    letter-spacing: 2px;
+    border-bottom: 2px solid #333;
+    background: #0f0f23;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 13px;
+    padding: 6px 0 12px;
+  }
+  .diagram-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+  }
+  svg text { font-family: 'Consolas', 'Courier New', monospace; }
+
+  /* Legend */
+  .legend {
+    max-width: 1100px;
+    margin: 10px auto 30px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    padding: 0 20px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .legend-swatch {
+    width: 30px;
+    height: 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* Pinout tables */
+  .tables {
+    max-width: 1100px;
+    margin: 0 auto 40px;
+    padding: 0 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) { .tables { grid-template-columns: 1fr; } }
+  .pin-table {
+    background: #16213e;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #333;
+  }
+  .pin-table h3 {
+    background: #0f3460;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: #00d4ff;
+  }
+  .pin-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .pin-table th {
+    background: #1a1a40;
+    padding: 6px 10px;
+    text-align: left;
+    color: #aaa;
+    font-weight: 600;
+    border-bottom: 1px solid #333;
+  }
+  .pin-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #222;
+    color: #ccc;
+  }
+  .pin-table tr:hover td { background: #1e2a4a; }
+  .wire-color {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 2px;
+    border: 1px solid #555;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+
+  /* Notes section */
+  .notes {
+    max-width: 1100px;
+    margin: 0 auto 40px;
+    padding: 0 20px;
+  }
+  .notes h3 {
+    color: #ff6b6b;
+    margin-bottom: 8px;
+    font-size: 15px;
+  }
+  .notes ul {
+    list-style: none;
+    padding: 0;
+  }
+  .notes li {
+    padding: 4px 0 4px 18px;
+    font-size: 13px;
+    color: #bbb;
+    position: relative;
+  }
+  .notes li::before {
+    content: "\26A0";
+    position: absolute;
+    left: 0;
+    color: #ff6b6b;
+  }
+</style>
+</head>
+<body>
+
+<h1>KNIGHT RACING eCVT &mdash; WIRING DIAGRAM</h1>
+<p class="subtitle">Baja SAE &nbsp;|&nbsp; Teensy 4.1 + Relay H-Bridge + 12V/152mm/2000N Actuator &nbsp;|&nbsp; Rev 1.0</p>
+
+<div class="diagram-wrap">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 820" width="1100" height="820">
+  <defs>
+    <!-- arrowhead -->
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#888"/>
+    </marker>
+    <marker id="ah-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff4444"/>
+    </marker>
+    <marker id="ah-grn" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#44cc44"/>
+    </marker>
+    <marker id="ah-blu" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4488ff"/>
+    </marker>
+    <marker id="ah-yel" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ffcc00"/>
+    </marker>
+    <marker id="ah-org" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff8800"/>
+    </marker>
+
+    <!-- glow filter -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="g"/>
+      <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background grid -->
+  <rect width="1100" height="820" fill="#1a1a2e"/>
+  <g stroke="#222" stroke-width="0.5" opacity="0.5">
+    <!-- vertical grid lines -->
+    <line x1="50" y1="0" x2="50" y2="820"/><line x1="150" y1="0" x2="150" y2="820"/>
+    <line x1="250" y1="0" x2="250" y2="820"/><line x1="350" y1="0" x2="350" y2="820"/>
+    <line x1="450" y1="0" x2="450" y2="820"/><line x1="550" y1="0" x2="550" y2="820"/>
+    <line x1="650" y1="0" x2="650" y2="820"/><line x1="750" y1="0" x2="750" y2="820"/>
+    <line x1="850" y1="0" x2="850" y2="820"/><line x1="950" y1="0" x2="950" y2="820"/>
+    <line x1="1050" y1="0" x2="1050" y2="820"/>
+    <!-- horizontal grid lines -->
+    <line x1="0" y1="50" x2="1100" y2="50"/><line x1="0" y1="150" x2="1100" y2="150"/>
+    <line x1="0" y1="250" x2="1100" y2="250"/><line x1="0" y1="350" x2="1100" y2="350"/>
+    <line x1="0" y1="450" x2="1100" y2="450"/><line x1="0" y1="550" x2="1100" y2="550"/>
+    <line x1="0" y1="650" x2="1100" y2="650"/><line x1="0" y1="750" x2="1100" y2="750"/>
+  </g>
+
+  <!-- ============================================================ -->
+  <!--  ALTERNATOR + BATTERY                                        -->
+  <!-- ============================================================ -->
+  <rect x="30" y="30" width="160" height="70" rx="8" fill="#2a1a1a" stroke="#ff4444" stroke-width="2"/>
+  <text x="110" y="55" text-anchor="middle" fill="#ff6666" font-size="14" font-weight="bold">ALTERNATOR</text>
+  <text x="110" y="73" text-anchor="middle" fill="#cc8888" font-size="11">12V / 18A max</text>
+
+  <!-- Battery -->
+  <rect x="30" y="130" width="160" height="60" rx="8" fill="#2a2a1a" stroke="#ffaa00" stroke-width="2"/>
+  <text x="110" y="155" text-anchor="middle" fill="#ffcc44" font-size="14" font-weight="bold">LEAD-ACID BATTERY</text>
+  <text x="110" y="172" text-anchor="middle" fill="#aa9944" font-size="11">12V reservoir</text>
+
+  <!-- Alt to Battery wire -->
+  <line x1="110" y1="100" x2="110" y2="130" stroke="#ff4444" stroke-width="2.5" marker-end="url(#ah-red)"/>
+
+  <!-- 20A Fuse -->
+  <rect x="260" y="130" width="100" height="40" rx="6" fill="#3a1a1a" stroke="#ff6666" stroke-width="1.5"/>
+  <text x="310" y="148" text-anchor="middle" fill="#ff8888" font-size="12" font-weight="bold">20A FUSE</text>
+  <text x="310" y="162" text-anchor="middle" fill="#aa6666" font-size="10">Inline blade</text>
+
+  <!-- Battery to Fuse -->
+  <line x1="190" y1="155" x2="260" y2="155" stroke="#ff4444" stroke-width="2.5" marker-end="url(#ah-red)"/>
+  <text x="225" y="148" text-anchor="middle" fill="#ff4444" font-size="9">12V+</text>
+
+  <!-- ============================================================ -->
+  <!--  JUNCTION POINT (post-fuse 12V)                              -->
+  <!-- ============================================================ -->
+  <circle cx="430" cy="155" r="6" fill="#ff4444" filter="url(#glow)"/>
+  <text x="430" y="140" text-anchor="middle" fill="#ff6666" font-size="10" font-weight="bold">12V JUNCTION</text>
+  <line x1="360" y1="155" x2="424" y2="155" stroke="#ff4444" stroke-width="2.5"/>
+
+  <!-- ============================================================ -->
+  <!--  BUCK CONVERTER                                              -->
+  <!-- ============================================================ -->
+  <rect x="500" y="30" width="180" height="80" rx="8" fill="#1a2a1a" stroke="#44cc44" stroke-width="2"/>
+  <text x="590" y="53" text-anchor="middle" fill="#66ee66" font-size="13" font-weight="bold">BUCK CONVERTER</text>
+  <text x="590" y="70" text-anchor="middle" fill="#88aa88" font-size="11">12V &rarr; 5V  |  3A rated</text>
+  <text x="590" y="85" text-anchor="middle" fill="#88aa88" font-size="10">~85% efficiency</text>
+  <!-- labels on converter -->
+  <text x="505" y="105" fill="#44cc44" font-size="9">VIN+</text>
+  <text x="660" y="105" fill="#44cc44" font-size="9" text-anchor="end">VOUT+</text>
+
+  <!-- Junction to Buck VIN+ -->
+  <polyline points="430,155 430,65 500,65" fill="none" stroke="#ff4444" stroke-width="2" marker-end="url(#ah-red)"/>
+  <text x="455" y="58" fill="#ff4444" font-size="9">12V+</text>
+
+  <!-- ============================================================ -->
+  <!--  5V JUNCTION                                                 -->
+  <!-- ============================================================ -->
+  <circle cx="750" cy="65" r="6" fill="#44cc44" filter="url(#glow)"/>
+  <text x="750" y="50" text-anchor="middle" fill="#66ee66" font-size="10" font-weight="bold">5V RAIL</text>
+  <line x1="680" y1="65" x2="744" y2="65" stroke="#44cc44" stroke-width="2.5"/>
+
+  <!-- ============================================================ -->
+  <!--  RASPBERRY PI 4B                                             -->
+  <!-- ============================================================ -->
+  <rect x="830" y="30" width="240" height="100" rx="10" fill="#1a1a3a" stroke="#4488ff" stroke-width="2"/>
+  <text x="950" y="55" text-anchor="middle" fill="#6699ff" font-size="14" font-weight="bold">RASPBERRY PI 4B</text>
+  <text x="950" y="73" text-anchor="middle" fill="#7788aa" font-size="10">USB-C: 5V power in</text>
+  <text x="950" y="87" text-anchor="middle" fill="#7788aa" font-size="10">USB-A #1: Teensy serial</text>
+  <text x="950" y="101" text-anchor="middle" fill="#7788aa" font-size="10">GPIO SPI: LoRa (future)</text>
+  <!-- port labels on left edge -->
+  <rect x="822" y="56" width="16" height="12" rx="2" fill="#4488ff" opacity="0.3"/>
+  <text x="838" y="65" fill="#4488ff" font-size="7">USB-C</text>
+  <rect x="822" y="76" width="16" height="12" rx="2" fill="#aa88ff" opacity="0.3"/>
+  <text x="838" y="85" fill="#aa88ff" font-size="7">USB-A</text>
+
+  <!-- 5V to Pi USB-C -->
+  <polyline points="750,65 790,65 790,62 830,62" fill="none" stroke="#44cc44" stroke-width="2" marker-end="url(#ah-grn)"/>
+  <text x="795" y="55" fill="#44cc44" font-size="9">5V 2.5A</text>
+
+  <!-- ============================================================ -->
+  <!--  TEENSY 4.1                                                  -->
+  <!-- ============================================================ -->
+  <rect x="450" y="240" width="280" height="220" rx="10" fill="#16213e" stroke="#00d4ff" stroke-width="2"/>
+  <text x="590" y="265" text-anchor="middle" fill="#00d4ff" font-size="15" font-weight="bold">TEENSY 4.1</text>
+  <text x="590" y="282" text-anchor="middle" fill="#5599aa" font-size="10">ARM Cortex-M7 @ 600 MHz</text>
+  <text x="590" y="296" text-anchor="middle" fill="#5599aa" font-size="10">3.3V GPIO (NOT 5V tolerant)</text>
+
+  <!-- Pin labels inside Teensy box -->
+  <!-- Left side pins -->
+  <rect x="455" y="312" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="495" y="326" text-anchor="middle" fill="#00d4ff" font-size="10">Pin 2  HALL</text>
+
+  <rect x="455" y="338" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="495" y="352" text-anchor="middle" fill="#00d4ff" font-size="10">Pin 3  FWD</text>
+
+  <rect x="455" y="364" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="495" y="378" text-anchor="middle" fill="#00d4ff" font-size="10">Pin 4  REV</text>
+
+  <rect x="455" y="390" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="495" y="404" text-anchor="middle" fill="#00d4ff" font-size="10">Pin 5  BTN</text>
+
+  <!-- Right side pins -->
+  <rect x="645" y="312" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="685" y="326" text-anchor="middle" fill="#00d4ff" font-size="10">A1  POS</text>
+
+  <rect x="645" y="338" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="685" y="352" text-anchor="middle" fill="#00d4ff" font-size="10">3V3  OUT</text>
+
+  <rect x="645" y="364" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="685" y="378" text-anchor="middle" fill="#00d4ff" font-size="10">GND</text>
+
+  <rect x="645" y="390" width="80" height="20" rx="3" fill="#0a1628" stroke="#00d4ff" stroke-width="0.5"/>
+  <text x="685" y="404" text-anchor="middle" fill="#00d4ff" font-size="10">USB  SER</text>
+
+  <!-- LED indicator -->
+  <rect x="555" y="420" width="70" height="18" rx="3" fill="#0a1628" stroke="#ffcc00" stroke-width="0.5"/>
+  <text x="590" y="433" text-anchor="middle" fill="#ffcc00" font-size="9">LED_BUILTIN</text>
+
+  <!-- Pi USB-A to Teensy USB -->
+  <polyline points="830,88 810,88 810,200 680,200 680,240" fill="none" stroke="#aa88ff" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#ah)"/>
+  <text x="810" y="150" fill="#aa88ff" font-size="9" transform="rotate(-90,810,150)">USB Serial 9600 baud + 5V power</text>
+
+  <!-- ============================================================ -->
+  <!--  DUAL RELAY MODULE                                           -->
+  <!-- ============================================================ -->
+  <rect x="30" y="300" width="240" height="170" rx="10" fill="#2a1a2a" stroke="#ff88ff" stroke-width="2"/>
+  <text x="150" y="325" text-anchor="middle" fill="#ffaaff" font-size="14" font-weight="bold">DUAL RELAY MODULE</text>
+  <text x="150" y="342" text-anchor="middle" fill="#aa77aa" font-size="10">2-ch, Active LOW, optoisolated</text>
+
+  <!-- Relay internal labels -->
+  <rect x="42" y="355" width="105" height="30" rx="4" fill="#1a0a1a" stroke="#ff88ff" stroke-width="0.5"/>
+  <text x="94" y="368" text-anchor="middle" fill="#ffaaff" font-size="10">K1 — EXTEND</text>
+  <text x="94" y="380" text-anchor="middle" fill="#aa77aa" font-size="9">COM1 / NO1</text>
+
+  <rect x="155" y="355" width="105" height="30" rx="4" fill="#1a0a1a" stroke="#ff88ff" stroke-width="0.5"/>
+  <text x="208" y="368" text-anchor="middle" fill="#ffaaff" font-size="10">K2 — RETRACT</text>
+  <text x="208" y="380" text-anchor="middle" fill="#aa77aa" font-size="9">COM2 / NO2</text>
+
+  <!-- Control pins labels -->
+  <text x="55" y="410" fill="#ff88ff" font-size="9">IN1</text>
+  <text x="100" y="410" fill="#ff88ff" font-size="9">IN2</text>
+  <text x="150" y="410" fill="#44cc44" font-size="9">VCC</text>
+  <text x="200" y="410" fill="#888" font-size="9">GND</text>
+  <!-- COM/NO labels at bottom -->
+  <text x="50" y="450" fill="#ff4444" font-size="9">COM1</text>
+  <text x="110" y="450" fill="#ff8800" font-size="9">NO1</text>
+  <text x="170" y="450" fill="#ff4444" font-size="9">COM2</text>
+  <text x="230" y="450" fill="#ff8800" font-size="9">NO2</text>
+
+  <!-- Teensy Pin 3 (FWD) to Relay IN1 -->
+  <polyline points="455,348 400,348 400,420 65,420" fill="none" stroke="#ff88ff" stroke-width="1.8" marker-end="url(#ah)"/>
+  <text x="370" y="340" fill="#ff88ff" font-size="9">Pin 3 (active LOW)</text>
+
+  <!-- Teensy Pin 4 (REV) to Relay IN2 -->
+  <polyline points="455,374 390,374 390,430 110,430" fill="none" stroke="#ff88ff" stroke-width="1.8" marker-end="url(#ah)"/>
+  <text x="370" y="366" fill="#ff88ff" font-size="9">Pin 4 (active LOW)</text>
+
+  <!-- 5V to Relay VCC -->
+  <polyline points="750,65 750,290 150,290 150,300" fill="none" stroke="#44cc44" stroke-width="1.8" stroke-dasharray="4,3" marker-end="url(#ah-grn)"/>
+  <text x="460" y="284" fill="#44cc44" font-size="9">5V to relay VCC (coil power)</text>
+
+  <!-- 12V Junction to Relay COM1 & COM2 -->
+  <polyline points="430,155 430,445 55,445" fill="none" stroke="#ff4444" stroke-width="2.5"/>
+  <line x1="55" y1="445" x2="65" y2="445" stroke="#ff4444" stroke-width="2.5"/>
+  <line x1="175" y1="445" x2="185" y2="445" stroke="#ff4444" stroke-width="2.5"/>
+  <!-- branch to COM2 -->
+  <line x1="130" y1="445" x2="130" y2="445" stroke="#ff4444" stroke-width="2.5"/>
+  <polyline points="55,445 55,455" fill="none" stroke="#ff4444" stroke-width="2"/>
+  <polyline points="185,445 185,455" fill="none" stroke="#ff4444" stroke-width="2"/>
+  <text x="300" y="440" fill="#ff4444" font-size="9">12V from fuse (via battery)</text>
+
+  <!-- ============================================================ -->
+  <!--  LINEAR ACTUATOR                                             -->
+  <!-- ============================================================ -->
+  <rect x="30" y="530" width="240" height="130" rx="10" fill="#1a2a2a" stroke="#ff8800" stroke-width="2"/>
+  <text x="150" y="555" text-anchor="middle" fill="#ffaa44" font-size="14" font-weight="bold">LINEAR ACTUATOR</text>
+  <text x="150" y="572" text-anchor="middle" fill="#88aa88" font-size="10">12V | 152mm stroke | 2000N</text>
+  <text x="150" y="588" text-anchor="middle" fill="#88aa88" font-size="10">~12 mm/s under load</text>
+
+  <!-- Actuator wire labels -->
+  <rect x="42" y="600" width="60" height="18" rx="3" fill="#ff2222" opacity="0.2" stroke="#ff4444" stroke-width="0.5"/>
+  <text x="72" y="613" text-anchor="middle" fill="#ff6666" font-size="10">RED +</text>
+  <rect x="110" y="600" width="60" height="18" rx="3" fill="#222" stroke="#888" stroke-width="0.5"/>
+  <text x="140" y="613" text-anchor="middle" fill="#ccc" font-size="10">BLK -</text>
+  <rect x="178" y="600" width="80" height="18" rx="3" fill="#eee" opacity="0.15" stroke="#ddd" stroke-width="0.5"/>
+  <text x="218" y="613" text-anchor="middle" fill="#eee" font-size="10">WHT pos</text>
+
+  <!-- Relay NO1 to Actuator RED -->
+  <polyline points="120,470 120,500 72,500 72,530" fill="none" stroke="#ff8800" stroke-width="2" marker-end="url(#ah-org)"/>
+  <text x="82" y="495" fill="#ff8800" font-size="9">NO1</text>
+
+  <!-- Relay NO2 to Actuator BLACK -->
+  <polyline points="240,470 240,500 140,500 140,530" fill="none" stroke="#ff8800" stroke-width="2" marker-end="url(#ah-org)"/>
+  <text x="195" y="495" fill="#ff8800" font-size="9">NO2</text>
+
+  <!-- ============================================================ -->
+  <!--  VOLTAGE DIVIDER                                             -->
+  <!-- ============================================================ -->
+  <rect x="380" y="570" width="160" height="120" rx="8" fill="#1a1a2a" stroke="#ffcc00" stroke-width="1.5"/>
+  <text x="460" y="592" text-anchor="middle" fill="#ffcc00" font-size="12" font-weight="bold">VOLTAGE DIVIDER</text>
+  <text x="460" y="608" text-anchor="middle" fill="#aa9944" font-size="10">Scales 0-5V to 0-2.25V</text>
+
+  <!-- Resistor symbols -->
+  <text x="395" y="630" fill="#ccc" font-size="11">R_top</text>
+  <text x="445" y="630" fill="#ffcc00" font-size="11" font-weight="bold">10k&#8486;</text>
+  <text x="395" y="655" fill="#ccc" font-size="11">R_bot</text>
+  <text x="445" y="655" fill="#ffcc00" font-size="11" font-weight="bold">8.2k&#8486;</text>
+  <text x="395" y="678" fill="#aaa" font-size="10">V_out = V_in x 0.4505</text>
+
+  <!-- Actuator WHITE to Voltage Divider input -->
+  <polyline points="258,609 320,609 320,615 380,615" fill="none" stroke="#dddddd" stroke-width="1.8" marker-end="url(#ah)"/>
+  <text x="325" y="604" fill="#ddd" font-size="9">WHT 0-5V</text>
+
+  <!-- Voltage Divider output to Teensy A1 -->
+  <polyline points="540,620 600,620 680,620 725,620 725,322 725,322" fill="none" stroke="#ffcc00" stroke-width="1.8" marker-end="url(#ah-yel)"/>
+  <text x="640" y="612" fill="#ffcc00" font-size="9">0-2.25V</text>
+  <text x="735" y="500" fill="#ffcc00" font-size="9" transform="rotate(-90,735,500)">to Teensy A1</text>
+
+  <!-- Divider GND -->
+  <line x1="460" y1="690" x2="460" y2="710" stroke="#888" stroke-width="1.5"/>
+  <text x="460" y="725" text-anchor="middle" fill="#888" font-size="10">GND</text>
+
+  <!-- ============================================================ -->
+  <!--  HALL EFFECT SENSOR                                          -->
+  <!-- ============================================================ -->
+  <rect x="30" y="700" width="180" height="100" rx="8" fill="#1a2a1a" stroke="#88ff88" stroke-width="1.5"/>
+  <text x="120" y="723" text-anchor="middle" fill="#88ff88" font-size="13" font-weight="bold">HALL SENSOR</text>
+  <text x="120" y="740" text-anchor="middle" fill="#669966" font-size="10">A3144 or equiv.</text>
+  <text x="120" y="756" text-anchor="middle" fill="#669966" font-size="10">Open-drain output</text>
+  <text x="120" y="772" text-anchor="middle" fill="#669966" font-size="10">VCC=3.3V  |  1 magnet/rev</text>
+  <text x="120" y="788" text-anchor="middle" fill="#556655" font-size="9">Mount &lt;3mm from sheave magnet</text>
+
+  <!-- Hall VCC from Teensy 3.3V -->
+  <polyline points="725,348 780,348 780,730 210,730" fill="none" stroke="#44cc44" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#ah-grn)"/>
+  <text x="780" y="550" fill="#44cc44" font-size="9" transform="rotate(-90,785,550)">3.3V from Teensy LDO</text>
+
+  <!-- Hall Signal to Teensy Pin 2 -->
+  <polyline points="210,755 350,755 350,322 455,322" fill="none" stroke="#88ff88" stroke-width="1.8" marker-end="url(#ah)"/>
+  <text x="350" y="748" fill="#88ff88" font-size="9">Signal (FALLING edge ISR)</text>
+  <text x="340" y="310" fill="#88ff88" font-size="8">INPUT_PULLUP</text>
+
+  <!-- ============================================================ -->
+  <!--  MODE BUTTON                                                 -->
+  <!-- ============================================================ -->
+  <rect x="300" y="700" width="160" height="80" rx="8" fill="#2a2a1a" stroke="#ffcc00" stroke-width="1.5"/>
+  <text x="380" y="725" text-anchor="middle" fill="#ffcc00" font-size="13" font-weight="bold">MODE BUTTON</text>
+  <text x="380" y="742" text-anchor="middle" fill="#aa9944" font-size="10">Momentary, N.O.</text>
+  <text x="380" y="758" text-anchor="middle" fill="#aa9944" font-size="10">Cycles: Eco/Sport/Agg</text>
+  <text x="380" y="772" text-anchor="middle" fill="#776633" font-size="9">200ms debounce in FW</text>
+
+  <!-- Button Signal to Teensy Pin 5 -->
+  <polyline points="380,700 380,404 455,404" fill="none" stroke="#ffcc00" stroke-width="1.8" marker-end="url(#ah-yel)"/>
+  <text x="365" y="500" fill="#ffcc00" font-size="9" transform="rotate(-90,370,550)">Pin 5 (INPUT_PULLUP)</text>
+
+  <!-- Button GND -->
+  <line x1="380" y1="780" x2="380" y2="805" stroke="#888" stroke-width="1.5"/>
+  <text x="380" y="815" text-anchor="middle" fill="#888" font-size="10">GND</text>
+
+  <!-- ============================================================ -->
+  <!--  STAR GROUND POINT                                           -->
+  <!-- ============================================================ -->
+  <rect x="600" y="730" width="200" height="60" rx="8" fill="#1a1a1a" stroke="#888" stroke-width="2"/>
+  <text x="700" y="752" text-anchor="middle" fill="#aaa" font-size="12" font-weight="bold">STAR GROUND</text>
+  <text x="700" y="770" text-anchor="middle" fill="#666" font-size="10">All GND &rarr; single point</text>
+  <!-- Ground symbol -->
+  <line x1="700" y1="790" x2="700" y2="805" stroke="#888" stroke-width="2"/>
+  <line x1="680" y1="805" x2="720" y2="805" stroke="#888" stroke-width="2"/>
+  <line x1="688" y1="810" x2="712" y2="810" stroke="#888" stroke-width="1.5"/>
+  <line x1="694" y1="815" x2="706" y2="815" stroke="#888" stroke-width="1"/>
+
+  <!-- Various GND connections to star ground -->
+  <line x1="460" y1="710" x2="460" y2="760" stroke="#666" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="460" y1="760" x2="600" y2="760" stroke="#666" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="380" y1="805" x2="600" y2="790" stroke="#666" stroke-width="1" stroke-dasharray="3,3"/>
+  <!-- Teensy GND -->
+  <polyline points="725,378 760,378 760,760 800,760" fill="none" stroke="#666" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- ============================================================ -->
+  <!--  DIRECTION TRUTH TABLE                                       -->
+  <!-- ============================================================ -->
+  <rect x="830" y="175" width="240" height="130" rx="8" fill="#1e1e30" stroke="#555" stroke-width="1"/>
+  <text x="950" y="195" text-anchor="middle" fill="#aaa" font-size="11" font-weight="bold">RELAY TRUTH TABLE</text>
+  <text x="855" y="215" fill="#888" font-size="10">IN1  IN2  Actuator</text>
+  <line x1="845" y1="220" x2="1055" y2="220" stroke="#444" stroke-width="0.5"/>
+  <text x="855" y="235" fill="#66ee66" font-size="10">HIGH HIGH  Stopped</text>
+  <text x="855" y="252" fill="#6699ff" font-size="10">LOW  HIGH  Extending (FWD)</text>
+  <text x="855" y="269" fill="#ffaa44" font-size="10">HIGH LOW   Retracting (REV)</text>
+  <text x="855" y="286" fill="#ff4444" font-size="10">LOW  LOW   DEAD SHORT!!</text>
+
+  <!-- ============================================================ -->
+  <!--  WATCHDOG NOTE                                               -->
+  <!-- ============================================================ -->
+  <rect x="830" y="330" width="240" height="55" rx="6" fill="#2a2a1a" stroke="#ffcc00" stroke-width="1"/>
+  <text x="950" y="350" text-anchor="middle" fill="#ffcc00" font-size="11" font-weight="bold">WATCHDOG TIMER</text>
+  <text x="950" y="368" text-anchor="middle" fill="#aa9944" font-size="10">500ms timeout &rarr; MCU reset</text>
+  <text x="950" y="380" text-anchor="middle" fill="#776633" font-size="9">Relays default OFF on reset</text>
+
+  <!-- ============================================================ -->
+  <!--  ADC INFO                                                    -->
+  <!-- ============================================================ -->
+  <rect x="830" y="410" width="240" height="75" rx="6" fill="#1a1a2e" stroke="#ffcc00" stroke-width="1"/>
+  <text x="950" y="430" text-anchor="middle" fill="#ffcc00" font-size="11" font-weight="bold">ADC CONFIG</text>
+  <text x="855" y="448" fill="#aa9944" font-size="10">Resolution: 12-bit (0-4095)</text>
+  <text x="855" y="463" fill="#aa9944" font-size="10">Usable range: 0-2794 counts</text>
+  <text x="855" y="478" fill="#aa9944" font-size="10">0.054 mm/count | EMA a=0.15</text>
+
+  <!-- ============================================================ -->
+  <!--  POWER BUDGET SUMMARY                                        -->
+  <!-- ============================================================ -->
+  <rect x="700" y="530" width="370" height="130" rx="8" fill="#0f0f23" stroke="#555" stroke-width="1"/>
+  <text x="885" y="552" text-anchor="middle" fill="#00d4ff" font-size="12" font-weight="bold">POWER BUDGET SUMMARY</text>
+  <text x="715" y="572" fill="#88aa88" font-size="10">Typical 12V draw:  ~4.57A  (55W)  25% of 18A limit</text>
+  <text x="715" y="590" fill="#aa8888" font-size="10">Peak 12V draw:     ~16.6A (199W)  battery transient</text>
+  <text x="715" y="608" fill="#88aa88" font-size="10">Buck load:         1.15A / 3.0A   38% capacity</text>
+  <text x="715" y="626" fill="#88aa88" font-size="10">Thermal:           ~2.5W cont.    no cooling needed</text>
+  <text x="715" y="648" fill="#ffaa44" font-size="10">Fuse: 20A blade  |  Alternator limit: 18A (SAE rule)</text>
+
+</svg>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><span class="legend-swatch" style="background:#ff4444"></span> 12V Power (from battery/alternator)</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#44cc44"></span> 5V Power (buck converter output)</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#44cc44; opacity:0.5"></span> 3.3V Power (Teensy LDO)</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#aa88ff"></span> USB Serial (Pi &harr; Teensy)</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#ff88ff"></span> Relay Control (digital, active LOW)</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#ff8800"></span> Actuator Motor Wires</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#ffcc00"></span> Analog Signal / Position Feedback</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#88ff88"></span> Hall Sensor Signal (interrupt)</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#888"></span> Ground (star topology)</div>
+  <div class="legend-item"><span class="legend-swatch" style="background:#ddd"></span> Actuator WHITE wire (0-5V raw)</div>
+</div>
+
+<!-- Pinout tables -->
+<div class="tables">
+  <div class="pin-table">
+    <h3>Teensy 4.1 Pinout</h3>
+    <table>
+      <tr><th>Pin</th><th>Function</th><th>Dir</th><th>Signal</th><th>Notes</th></tr>
+      <tr>
+        <td><strong>2</strong></td>
+        <td>PIN_HALL</td>
+        <td>IN</td>
+        <td>Digital, FALLING ISR</td>
+        <td>INPUT_PULLUP, 3.3V logic</td>
+      </tr>
+      <tr>
+        <td><strong>3</strong></td>
+        <td>PIN_RELAY_FWD</td>
+        <td>OUT</td>
+        <td>Digital, active LOW</td>
+        <td>LOW = extend actuator</td>
+      </tr>
+      <tr>
+        <td><strong>4</strong></td>
+        <td>PIN_RELAY_REV</td>
+        <td>OUT</td>
+        <td>Digital, active LOW</td>
+        <td>LOW = retract actuator</td>
+      </tr>
+      <tr>
+        <td><strong>5</strong></td>
+        <td>PIN_MODE_BTN</td>
+        <td>IN</td>
+        <td>Digital, active LOW</td>
+        <td>INPUT_PULLUP, 200ms debounce</td>
+      </tr>
+      <tr>
+        <td><strong>A1</strong></td>
+        <td>PIN_ACT_POS</td>
+        <td>IN</td>
+        <td>Analog 0&ndash;2.25V</td>
+        <td>12-bit ADC, 0&ndash;2794 counts</td>
+      </tr>
+      <tr>
+        <td><strong>3V3</strong></td>
+        <td>Power out</td>
+        <td>OUT</td>
+        <td>3.3V regulated</td>
+        <td>250mA max, feeds hall sensor</td>
+      </tr>
+      <tr>
+        <td><strong>GND</strong></td>
+        <td>Ground</td>
+        <td>&mdash;</td>
+        <td>&mdash;</td>
+        <td>To star ground bus</td>
+      </tr>
+      <tr>
+        <td><strong>USB</strong></td>
+        <td>Serial + Power</td>
+        <td>I/O</td>
+        <td>USB CDC, 9600 baud</td>
+        <td>5V from Pi USB-A port</td>
+      </tr>
+      <tr>
+        <td><strong>LED</strong></td>
+        <td>LED_BUILTIN</td>
+        <td>OUT</td>
+        <td>Digital</td>
+        <td>Blinks on hall pulse</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="pin-table">
+    <h3>Relay Module Terminals</h3>
+    <table>
+      <tr><th>Terminal</th><th>Connected To</th><th>Notes</th></tr>
+      <tr>
+        <td><strong>IN1</strong></td>
+        <td>Teensy Pin 3</td>
+        <td>FWD relay, active LOW</td>
+      </tr>
+      <tr>
+        <td><strong>IN2</strong></td>
+        <td>Teensy Pin 4</td>
+        <td>REV relay, active LOW</td>
+      </tr>
+      <tr>
+        <td><strong>VCC</strong></td>
+        <td>Buck 5V output</td>
+        <td>MUST be 5V, not 3.3V</td>
+      </tr>
+      <tr>
+        <td><strong>GND</strong></td>
+        <td>Star ground</td>
+        <td>Common ground bus</td>
+      </tr>
+      <tr>
+        <td><strong>COM1</strong></td>
+        <td>12V (post-fuse)</td>
+        <td>Power to relay 1</td>
+      </tr>
+      <tr>
+        <td><strong>COM2</strong></td>
+        <td>12V (post-fuse)</td>
+        <td>Power to relay 2</td>
+      </tr>
+      <tr>
+        <td><strong>NO1</strong></td>
+        <td>Actuator RED</td>
+        <td>Motor + when K1 on</td>
+      </tr>
+      <tr>
+        <td><strong>NO2</strong></td>
+        <td>Actuator BLACK</td>
+        <td>Motor - when K2 on</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="pin-table">
+    <h3>Linear Actuator Wires</h3>
+    <table>
+      <tr><th>Wire</th><th>Function</th><th>Connected To</th><th>Voltage</th></tr>
+      <tr>
+        <td><span class="wire-color" style="background:#ff2222"></span> RED</td>
+        <td>Motor +</td>
+        <td>Relay NO1</td>
+        <td>12V switched</td>
+      </tr>
+      <tr>
+        <td><span class="wire-color" style="background:#333"></span> BLACK</td>
+        <td>Motor -</td>
+        <td>Relay NO2</td>
+        <td>12V switched</td>
+      </tr>
+      <tr>
+        <td><span class="wire-color" style="background:#eee"></span> WHITE</td>
+        <td>Position feedback</td>
+        <td>Voltage divider in</td>
+        <td>0&ndash;5V (raw)</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="pin-table">
+    <h3>Voltage Divider (Actuator Feedback)</h3>
+    <table>
+      <tr><th>Component</th><th>Value</th><th>Connection</th></tr>
+      <tr>
+        <td>R_top</td>
+        <td><strong>10k&Omega;</strong></td>
+        <td>WHITE wire &rarr; Teensy A1</td>
+      </tr>
+      <tr>
+        <td>R_bot</td>
+        <td><strong>8.2k&Omega;</strong></td>
+        <td>Teensy A1 &rarr; GND</td>
+      </tr>
+      <tr>
+        <td>Ratio</td>
+        <td>0.4505</td>
+        <td>5V &rarr; 2.253V max out</td>
+      </tr>
+      <tr>
+        <td>Safety margin</td>
+        <td>1.05V</td>
+        <td>Below 3.3V ADC ref</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="pin-table">
+    <h3>Wire Gauge Reference</h3>
+    <table>
+      <tr><th>Circuit</th><th>Current</th><th>Gauge</th></tr>
+      <tr><td>Alt &rarr; Fuse &rarr; Battery</td><td>&le;18A</td><td>14 AWG</td></tr>
+      <tr><td>Battery &rarr; Relay COM</td><td>&le;15A stall</td><td>16 AWG</td></tr>
+      <tr><td>Relay NO &rarr; Actuator</td><td>&le;15A stall</td><td>16 AWG</td></tr>
+      <tr><td>Battery &rarr; Buck IN</td><td>~1.5A</td><td>20 AWG</td></tr>
+      <tr><td>Buck 5V &rarr; Pi</td><td>&le;3A</td><td>20 AWG</td></tr>
+      <tr><td>Signal wires</td><td>&lt;10mA</td><td>24&ndash;26 AWG</td></tr>
+    </table>
+  </div>
+
+  <div class="pin-table">
+    <h3>Raspberry Pi 4B Connections</h3>
+    <table>
+      <tr><th>Port</th><th>Connected To</th><th>Purpose</th></tr>
+      <tr>
+        <td><strong>USB-C</strong></td>
+        <td>Buck 5V output</td>
+        <td>Power (5V @ 2.5A+)</td>
+      </tr>
+      <tr>
+        <td><strong>USB-A #1</strong></td>
+        <td>Teensy 4.1 USB</td>
+        <td>Serial + power to Teensy</td>
+      </tr>
+      <tr>
+        <td><strong>GPIO SPI</strong></td>
+        <td>LoRa RFM95W</td>
+        <td>Future — not yet wired</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Safety notes -->
+<div class="notes">
+  <h3>CRITICAL SAFETY NOTES</h3>
+  <ul>
+    <li>Teensy 4.1 GPIO is 3.3V only — NOT 5V tolerant. Never connect 5V signals directly.</li>
+    <li>Actuator WHITE wire is 0-5V. MUST go through voltage divider before Teensy A1.</li>
+    <li>Relay VCC MUST be 5V (from buck), not 3.3V. Coils won't energize reliably at 3.3V.</li>
+    <li>NEVER drive IN1 and IN2 LOW simultaneously — creates 12V dead short through actuator.</li>
+    <li>75ms relay deadtime enforced in firmware between direction changes.</li>
+    <li>Star ground topology required — all GND wires meet at ONE common point.</li>
+    <li>500ms hardware watchdog resets MCU if loop stalls — relays default OFF on reset.</li>
+    <li>20A inline blade fuse on 12V main feed. Do not bypass.</li>
+    <li>Route power wires (12V, GND) separately from signal wires to reduce EMI.</li>
+  </ul>
+</div>
+
+</body>
+</html>
